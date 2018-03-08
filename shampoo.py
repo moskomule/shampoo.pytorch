@@ -3,8 +3,10 @@ from torch.optim.optimizer import Optimizer
 
 
 def _matrix_power(matrix, power):
+    # use CPU for svd for speed up
+    matrix = matrix.cpu()
     u, s, v = torch.svd(matrix)
-    return u @ s.pow_(power).diag() @ v.t()
+    return (u @ s.pow_(power).diag() @ v.t()).cuda()
 
 
 class Shampoo(Optimizer):
