@@ -9,17 +9,18 @@ def _matrix_power(matrix, power):
 
 class Shampoo(Optimizer):
 
-    def __init__(self, params, lr=1e-1, momentum=0, epsilon=1e-4, update_freq=1):
+    def __init__(self, params, lr=1e-1, momentum=0, weight_decay=0, epsilon=1e-4, update_freq=1):
         """
 
         :param params (iterable): iterable of parameters to optimize or dicts defining
             parameter groups
         :param lr (float, optional): learning rate (default: 1e-1)
         :param momentum: (float, optional): momentum factor (default: 0)
+        :param weight_decay: (float, optional): weigt decay factor (default: 0)
         :param epsilon: (float, optional): momentum factor (default: 1e-4)
         :param update_freq: (int, optional): update frequency to compute inverse (default: 1)
         """
-        defaults = dict(lr=lr, momentum=momentum, epsilon=epsilon, update_freq=update_freq)
+        defaults = dict(lr=lr, momentum=momentum, weight_decay=weight_decay, epsilon=epsilon, update_freq=update_freq)
         super(Shampoo, self).__init__(params, defaults)
 
     def step(self, closure=None):
@@ -36,6 +37,7 @@ class Shampoo(Optimizer):
                 original_size = grad.size()
                 state = self.state[p]
                 momentum = group["momentum"]
+                weight_decay = group["weight_decay"]
 
                 if len(state) == 0:
                     state["step"] = 0
@@ -49,7 +51,10 @@ class Shampoo(Optimizer):
                 if momentum > 0:
                     # grad = (1 - moment) * grad(t) + moment * grad(t-1)
                     # and grad(-1) = grad(0)
-                    grad.mul_(1 - momentum).add(momentum, state["momentum_buffer"])
+                    grad.mul_(1 - momentum).add_(momentum, state["momentum_buffer"])
+
+                if weight_decay > 0:
+                    grad.add_(group["weight_decay"], p.data)
 
                 # See Algorithm 2 for detail
                 for dim_id, dim in enumerate(grad.size()):
