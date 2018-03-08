@@ -29,11 +29,11 @@ def get_dataloader(batch_size, root="~/.torch/data/cifar10"):
     return train_loader, test_loader
 
 
-def main(batch_size, lr, momentum, update_freq):
+def main(batch_size, lr, momentum, epsilon, update_freq):
     train_loader, test_loader = get_dataloader(batch_size)
 
     model = resnet20()
-    optimizer = Shampoo(params=model.parameters(), lr=lr, momentum=momentum,
+    optimizer = Shampoo(params=model.parameters(), lr=lr, momentum=momentum, epsilon=epsilon,
                         update_freq=update_freq)
     trainer = Trainer(model, optimizer, F.cross_entropy)
     trainer.loop(200, train_loader, test_loader)
@@ -46,6 +46,7 @@ if __name__ == '__main__':
     p.add_argument("--batchsize", type=int, default=128)
     p.add_argument("--lr", type=float, default=0.1)
     p.add_argument("--momentum", type=float, default=0.9)
+    p.add_argument("--epsilon", type=float, default=1e-4)
     p.add_argument("--update_freq", type=int, default=1)
     args = p.parse_args()
-    main(args.batchsize, args.lr, args.momentum, args.update_freq)
+    main(args.batchsize, args.lr, args.momentum, args.epsilon, args.update_freq)

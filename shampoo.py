@@ -23,12 +23,6 @@ class Shampoo(Optimizer):
         super(Shampoo, self).__init__(params, defaults)
 
     def step(self, closure=None):
-        """Performs a single optimization step.
-
-        Arguments:
-            closure (callable, optional): A closure that reevaluates the model
-                and returns the loss.
-        """
         loss = None
         if closure is not None:
             loss = closure()
@@ -38,39 +32,53 @@ class Shampoo(Optimizer):
                 if p.grad is None:
                     continue
                 grad = p.grad.data
+                order = grad.ndimension()
+                original_size = grad.size()
+                state = self.state[p]
                 momentum = group["momentum"]
-                ndim = p.ndimension()
-                if ndim > 1:
-                    original_size = p.size()
-                    if ndim > 2:
-                        grad = grad.view(original_size[0], -1)
-                    _m, _n = grad.size()
-                    state = self.state[p]
 
-                    # State initialization
-                    if len(state) == 0:
-                        state["step"] = 0
-                        state["L"] = group["epsilon"] * torch.eye(_m, out=grad.new(_m, _m))
-                        state["R"] = group["epsilon"] * torch.eye(_n, out=grad.new(_n, _n))
-                        state["quarter_L"] = None
-                        state["quarter_R"] = None
-                        if momentum > 0:
-                            state["exp_avg"] = grad.new(_m, _n)
-
+                if len(state) == 0:
+                    state["step"] = 0
                     if momentum > 0:
-                        state["exp_avg"].mul_(momentum).add_(momentum, grad)
-                        grad = state["exp_avg"]
+                        state["momentum_buffer"] = grad.clone()
+                    for dim_id, dim in enumerate(grad.size()):
+                        # precondition matrices
+                        state[f"precond_{dim_id}"] = group["epsilon"] * torch.eye(dim, out=grad.new(dim, dim))
+                        state[f"inv_precond_{dim_id}"] = grad.new(dim, dim).zero_()
+
+                if momentum > 0:
+                    # grad = (1 - moment) * grad(t) + moment * grad(t-1)
+                    # and grad(-1) = grad(0)
+                    grad.mul_(1 - momentum).add(momentum, state["momentum_buffer"])
+
+                # See Algorithm 2 for detail
+                for dim_id, dim in enumerate(grad.size()):
+                    precond = state[f"precond_{dim_id}"]
+                    inv_precond = state[f"inv_precond_{dim_id}"]
+
+                    # mat_{dim_id}(grad)
+                    grad = grad.transpose_(0, dim_id).contiguous()
+                    transposed_size = grad.size()
+                    grad = grad.view(dim, -1)
 
                     grad_t = grad.t()
-                    state["L"].add_(grad @ grad_t)
-                    state["R"].add_(grad_t @ grad)
-
+                    precond.add_(grad @ grad_t)
                     if state["step"] % group["update_freq"] == 0:
-                        state["quarter_L"] = _matrix_power(state["L"], -0.25)
-                        state["quarter_R"] = _matrix_power(state["R"], -0.25)
-                    grad = (state["quarter_L"] @ grad @ state["quarter_R"]).view(original_size)
-                    state["step"] += 1
+                        inv_precond.copy_(_matrix_power(precond, -1 / order))
 
+                    if dim_id == order - 1:
+                        # finally
+                        grad = grad_t @ inv_precond
+                        # grad: (-1, last_dim)
+                        grad = grad.view(original_size)
+                    else:
+                        # if not final
+                        grad = inv_precond @ grad
+                        # grad (dim, -1)
+                        grad = grad.view(transposed_size)
+
+                state["step"] += 1
+                state["momentum_buffer"] = grad
                 p.data.add_(-group["lr"], grad)
 
         return loss
