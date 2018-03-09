@@ -33,8 +33,8 @@ def main(batch_size, lr, momentum, epsilon, update_freq):
     train_loader, test_loader = get_dataloader(batch_size)
 
     model = resnet20()
-    optimizer = Shampoo(params=model.parameters(), lr=lr, momentum=momentum, epsilon=epsilon,
-                        update_freq=update_freq)
+    optimizer = Shampoo(params=model.parameters(), lr=lr, momentum=momentum,
+                        weight_decay=1e-4, epsilon=epsilon, update_freq=update_freq)
     trainer = Trainer(model, optimizer, F.cross_entropy)
     trainer.loop(200, train_loader, test_loader)
 

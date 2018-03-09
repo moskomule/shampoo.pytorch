@@ -3,9 +3,11 @@
 An implementation of shampoo, proposed in **Shampoo : Preconditioned Stochastic Tensor Optimization** by Vineet Gupta, Tomer Koren and Yoram Singer.
 
 
+![algorithm.png](algorithm.png)
+
 ```python
 #  Suppose the size of the tensor grad (i, j, k),
-#  dim_id = 2 and dim = j
+#  dim_id = 1 and dim = j
 grad = grad.transpose_(0, dim_id).contiguous()  # (j, i, k)
 transposed_size = grad.size()
 grad = grad.view(dim, -1)  # (j, i x k)
